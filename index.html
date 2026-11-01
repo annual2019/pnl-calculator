@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>股票 / 期权盈亏计算器</title>
+<style>
+  :root{
+    --blue:#2b6cff; --bg:#f4f7fc; --card:#ffffff; --text:#1f2430; --muted:#8a93a6;
+    --line:#e6ebf3; --red:#e53935; --green:#2e9e43; --soft:#eef3ff;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);}
+  .wrap{max-width:760px;margin:0 auto;padding:24px 16px 56px;}
+  header h1{font-size:25px;margin:0 0 6px;}
+  header .sub{color:var(--muted);font-size:14px;margin:0 0 16px;line-height:1.7;}
+  .tabs{display:flex;gap:8px;margin-bottom:18px;}
+  .tab{flex:1;text-align:center;padding:11px 0;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--muted);font-size:15px;cursor:pointer;font-weight:600;transition:.15s;}
+  .tab.on{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 18px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;}
+  .field .hint{font-size:12px;color:#b3bac9;margin-top:4px;}
+  .field input,.field select{width:100%;padding:12px 13px;font-size:16px;border:2px solid var(--line);border-radius:10px;outline:none;background:#fff;transition:.15s;}
+  .field input:focus,.field select:focus{border-color:var(--blue);box-shadow:0 0 0 4px rgba(43,108,255,.12);}
+  .row{display:flex;gap:12px;flex-wrap:wrap;}
+  .row .field{flex:1;min-width:130px;}
+  .seg{display:flex;gap:0;border:2px solid var(--line);border-radius:10px;overflow:hidden;}
+  .seg button{flex:1;padding:11px 0;border:none;background:#fff;color:var(--muted);font-size:15px;cursor:pointer;font-weight:600;}
+  .seg button.on{background:var(--blue);color:#fff;}
+  .btn{display:inline-block;margin-top:6px;padding:12px 22px;background:var(--blue);color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;}
+  .btn.ghost{background:#fff;color:var(--blue);border:2px solid var(--blue);}
+  .presets{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 14px;}
+  .presets span{background:var(--soft);color:var(--blue);font-size:13px;padding:6px 12px;border-radius:18px;cursor:pointer;}
+  .presets span:hover{background:#dde7ff;}
+  .result{margin-top:18px;border-top:1px dashed var(--line);padding-top:16px;}
+  .line{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;font-size:15px;}
+  .line .k{color:var(--muted);}
+  .line .v{font-weight:600;font-size:17px;}
+  .big{font-size:26px;font-weight:700;padding:14px 0;}
+  .up{color:var(--red);} .down{color:var(--green);}
+  .verdict{margin-top:12px;background:var(--soft);border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.7;color:#34405c;}
+  .chartbox{margin-top:18px;}
+  .chartbox svg{width:100%;height:auto;display:block;background:#fbfcff;border:1px solid var(--line);border-radius:10px;}
+  footer{margin-top:26px;color:var(--muted);font-size:12px;text-align:center;line-height:1.9;}
+  .hidden{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>股票 / 期权盈亏计算器</h1>
+    <p class="sub">买卖股票算算到底赚了多少、亏了多少；做期权能直接画出<b>盈亏图</b>——一眼看清"价格涨（跌）到哪儿才开始赚钱、回本点在哪"。纯前端、不联网、数据不出浏览器，仅供学习参考，不构成投资建议。</p>
+  </header>
+
+  <div class="tabs">
+    <div class="tab on" data-t="stock">📈 股票买卖盈亏</div>
+    <div class="tab" data-t="option">📊 期权盈亏图</div>
+  </div>
+
+  <!-- 股票面板 -->
+  <div class="panel" id="panel-stock">
+    <div class="row">
+      <div class="field"><label>买入价（每股）</label><input id="buyP" type="number" step="0.01" placeholder="如 10.00"></div>
+      <div class="field"><label>卖出价 / 当前价（每股）</label><input id="sellP" type="number" step="0.01" placeholder="如 11.50"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>持有股数</label><input id="shares" type="number" step="100" placeholder="如 1000"></div>
+      <div class="field"><label>佣金费率（万分之）</label><input id="rate" type="number" step="0.1" value="2.5"><div class="hint">买、卖都按此费率算，默认万2.5</div></div>
+    </div>
+    <button class="btn" id="calcStock">算一算</button>
+    <div class="result hidden" id="stockRes">
+      <div class="big" id="stockPnl"></div>
+      <div class="line"><span class="k">买入总成本（含佣金）</span><span class="v" id="rCost"></span></div>
+      <div class="line"><span class="k">卖出总收入（扣佣金）</span><span class="v" id="rIncome"></span></div>
+      <div class="line"><span class="k">收益率</span><span class="v" id="rRate"></span></div>
+      <div class="line"><span class="k">保本卖出价（含手续费）</span><span class="v" id="rBE"></span></div>
+      <div class="verdict" id="stockVerdict"></div>
+    </div>
+  </div>
+
+  <!-- 期权面板 -->
+  <div class="panel hidden" id="panel-option">
+    <div class="field"><label>合约类型</label>
+      <div class="seg" id="segType">
+        <button class="on" data-v="call">认购（Call）</button>
+        <button data-v="put">认沽（Put）</button>
+      </div>
+    </div>
+    <div class="field"><label>你是买方还是卖方</label>
+      <div class="seg" id="segSide">
+        <button class="on" data-v="buy">买方（付权利金）</button>
+        <button data-v="sell">卖方（收权利金）</button>
+      </div>
+    </div>
+    <div class="presets" id="presets">
+      <span data-p="call,buy,0.08,3.00,3.20">50ETF购 示例</span>
+      <span data-p="put,buy,0.05,3.00,2.90">认沽买 示例</span>
+      <span data-p="call,sell,0.08,3.00,3.20">50ETF购 卖 示例</span>
+    </div>
+    <div class="row">
+      <div class="field"><label>权利金（每股）</label><input id="prem" type="number" step="0.01" placeholder="如 0.08"></div>
+      <div class="field"><label>行权价</label><input id="strike" type="number" step="0.01" placeholder="如 3.00"></div>
+      <div class="field"><label>当前标的价格</label><input id="spot" type="number" step="0.01" placeholder="如 3.20"></div>
+    </div>
+    <button class="btn" id="calcOpt">画图算盈亏</button>
+    <div class="result hidden" id="optRes">
+      <div class="big" id="optPnl"></div>
+      <div class="line"><span class="k">盈亏平衡点（标的价格）</span><span class="v" id="rOBE"></span></div>
+      <div class="line"><span class="k">当前内在价值</span><span class="v" id="rIntr"></span></div>
+      <div class="verdict" id="optVerdict"></div>
+      <div class="chartbox" id="chartbox"></div>
+    </div>
+  </div>
+
+  <footer>
+    1024 造物挑战作品 · 纯前端实现，无需联网、无需账号，数据全部留在您本地浏览器<br>
+    所有计算仅为学习演示，不构成任何投资建议
+  </footer>
+</div>
+
+<script>
+/* ---------- 标签切换 ---------- */
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.onclick=()=>{
+  tabs.forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');
+  const which=t.dataset.t;
+  document.getElementById('panel-stock').classList.toggle('hidden',which!=='stock');
+  document.getElementById('panel-option').classList.toggle('hidden',which!=='option');
+});
+
+/* ---------- 分段选择 ---------- */
+function bindSeg(id,cb){
+  const seg=document.getElementById(id);
+  seg.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); cb(b.dataset.v);
+  });
+}
+let oType='call', oSide='buy';
+bindSeg('segType',v=>oType=v);
+bindSeg('segSide',v=>oSide=v);
+
+/* ---------- 工具 ---------- */
+const f2=n=>{ if(!isFinite(n)) return '—'; return (Math.round(n*100)/100).toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+const fPct=n=>{ if(!isFinite(n)) return '—'; return (Math.round(n*10000)/100).toFixed(2)+'%'; };
+
+/* ---------- 股票盈亏 ---------- */
+document.getElementById('calcStock').onclick=()=>{
+  const buyP=parseFloat(document.getElementById('buyP').value);
+  const sellP=parseFloat(document.getElementById('sellP').value);
+  const sh=parseFloat(document.getElementById('shares').value);
+  const rate=parseFloat(document.getElementById('rate').value||'0')/10000;
+  if(!(buyP>0)||!(sellP>0)||!(sh>0)){ alert('请填写有效的买入价、卖出价、股数'); return; }
+  const buyAmt=buyP*sh, buyFee=buyAmt*rate;
+  const sellAmt=sellP*sh, sellFee=sellAmt*rate;
+  const cost=buyAmt+buyFee;
+  const income=sellAmt-sellFee;
+  const pnl=income-cost;
+  const rateR=pnl/cost;
+  const beSell=(cost/sh)/(1-rate);
+  const up=pnl>=0;
+  document.getElementById('stockRes').classList.remove('hidden');
+  const pe=document.getElementById('stockPnl');
+  pe.className='big '+(up?'up':'down');
+  pe.textContent=(up?'赚 ':'亏 ')+'¥'+f2(Math.abs(pnl))+(up?'（红）':'（绿）');
+  document.getElementById('rCost').textContent='¥'+f2(cost);
+  document.getElementById('rIncome').textContent='¥'+f2(income);
+  const re=document.getElementById('rRate'); re.className='v '+(up?'up':'down'); re.textContent=fPct(rateR);
+  document.getElementById('rBE').textContent='¥'+f2(beSell)+' /股';
+  document.getElementById('stockVerdict').innerHTML= up
+    ? '按当前价卖出，这笔买卖是<b>赚钱</b>的；只要卖价高于 <b>'+f2(beSell)+'</b> 就不亏本。'
+    : '按当前价卖出，这笔买卖目前是<b>亏损</b>的；要把卖价拉到 <b>'+f2(beSell)+'</b> 以上才能回本。';
+};
+
+/* ---------- 期权盈亏 ---------- */
+function payoff(p,K,pr,type,side){
+  const intrinsic = type==='call' ? Math.max(p-K,0) : Math.max(K-p,0);
+  return side==='buy' ? intrinsic-pr : pr-intrinsic;
+}
+document.getElementById('presets').querySelectorAll('span').forEach(s=>s.onclick=()=>{
+  const [t,si,pr,K,sp]=s.dataset.p.split(',');
+  oType=t; oSide=si;
+  document.querySelectorAll('#segType button').forEach(b=>b.classList.toggle('on',b.dataset.v===t));
+  document.querySelectorAll('#segSide button').forEach(b=>b.classList.toggle('on',b.dataset.v===si));
+  document.getElementById('prem').value=pr;
+  document.getElementById('strike').value=K;
+  document.getElementById('spot').value=sp;
+  document.getElementById('calcOpt').click();
+});
+
+document.getElementById('calcOpt').onclick=()=>{
+  const pr=parseFloat(document.getElementById('prem').value);
+  const K=parseFloat(document.getElementById('strike').value);
+  const sp=parseFloat(document.getElementById('spot').value);
+  if(!(pr>=0)||!(K>0)||!(sp>=0)){ alert('请填写有效的权利金、行权价、当前价'); return; }
+  const cur=payoff(sp,K,pr,oType,oSide);
+  const be = oType==='call' ? K+pr : K-pr;          // 买方/卖方平衡点相同
+  const intrinsic = oType==='call' ? Math.max(sp-K,0) : Math.max(K-sp,0);
+  const up=cur>=0;
+  document.getElementById('optRes').classList.remove('hidden');
+  const pe=document.getElementById('optPnl');
+  pe.className='big '+(up?'up':'down');
+  pe.textContent=(up?'当前盈利 ':'当前亏损 ')+'¥'+f2(Math.abs(cur))+(up?'（红）':'（绿）')+' /股';
+  document.getElementById('rOBE').textContent= f2(be)+' （'+ (oType==='call'?'涨过此价':'跌到此价') +'回本）';
+  document.getElementById('rIntr').textContent='¥'+f2(intrinsic);
+  let v;
+  if(oSide==='buy'){
+    v = oType==='call'
+      ? '你是认购<b>买方</b>：标的价格涨过 <b>'+f2(be)+'</b> 你才开始赚钱；最大亏损就是已付权利金 ¥'+f2(pr)+'/股（价格不涨反跌时全损）。'
+      : '你是认沽<b>买方</b>：标的价格跌到 <b>'+f2(be)+'</b> 以下你才开始赚钱；最大亏损是已付权利金 ¥'+f2(pr)+'/股。';
+  }else{
+    v = oType==='call'
+      ? '你是认购<b>卖方</b>：只要标的价格不涨过 <b>'+f2(be)+'</b> 你就稳赚权利金 ¥'+f2(pr)+'/股；价格涨破此线开始亏。'
+      : '你是认沽<b>卖方</b>：只要标的价格不跌到 <b>'+f2(be)+'</b> 以下你就稳赚权利金 ¥'+f2(pr)+'/股；跌穿此线开始亏。';
+  }
+  document.getElementById('optVerdict').innerHTML=v;
+  drawChart(K,pr,oType,oSide,sp,be);
+};
+
+/* ---------- 期权盈亏图（纯 SVG，无依赖） ---------- */
+function drawChart(K,pr,type,side,sp,be){
+  const W=680,H=340,m={l:64,r:18,t:22,b:46};
+  const minP=Math.max(0, Math.min(K,sp)*0.5);
+  const maxP=Math.max(K,sp)*1.5 + 1;
+  const N=140;
+  const pts=[];
+  for(let i=0;i<=N;i++){ const p=minP+(maxP-minP)*i/N; pts.push([p, payoff(p,K,pr,type,side)]); }
+  let maxAbs=Math.max(pr, 0.0001);
+  pts.forEach(x=>{ if(Math.abs(x[1])>maxAbs) maxAbs=Math.abs(x[1]); });
+  maxAbs*=1.18;
+  const yTop=maxAbs, yBot=-maxAbs;
+  const px=p=> m.l + (p-minP)/(maxP-minP)*(W-m.l-m.r);
+  const py=v=> m.t + (yTop - v)/(yTop-yBot)*(H-m.t-m.b);
+  const y0=py(0);
+
+  // 分段填充：盈利(红)/亏损(绿) 各为连续区域
+  function region(test){
+    const sub=pts.filter(x=>test(x[1]));
+    if(sub.length===0) return '';
+    const top=sub.map(([p,v])=> px(p)+','+py(v)).join(' ');
+    const x1=px(sub[0][0]), x2=px(sub[sub.length-1][0]);
+    return '<polygon points="'+x1+','+y0+' '+top+' '+x2+','+y0+'" fill="'+(test(1)?'rgba(229,57,53,.16)':'rgba(46,158,67,.16)')+'"/>';
+  }
+  const fillUp=region(v=>v>=0);
+  const fillDown=region(v=>v<0);
+
+  // 曲线折线
+  let d='';
+  pts.forEach((x,i)=>{ d+=(i?' L':'M')+px(x[0])+','+py(x[1]); });
+
+  // 坐标刻度（价格）
+  const xticks=[];
+  for(let i=0;i<=4;i++){ const p=minP+(maxP-minP)*i/4; xticks.push(p); }
+  let xax='';
+  xticks.forEach(p=>{ xax+='<line x1="'+px(p)+'" y1="'+y0+'" x2="'+px(p)+'" y2="'+(y0+4)+'" stroke="#b3bac9"/>'+
+    '<text x="'+px(p)+'" y="'+(y0+18)+'" font-size="11" fill="#8a93a6" text-anchor="middle">'+f2(p)+'</text>'; });
+  // 纵轴刻度（盈亏）
+  const yticks=[maxAbs,maxAbs/2,0,-maxAbs/2,-maxAbs];
+  let yax='';
+  yticks.forEach(v=>{ const y=py(v); yax+='<line x1="'+m.l+'" y1="'+y+'" x2="'+(W-m.r)+'" y2="'+y+'" stroke="#eef1f6"/>'+
+    '<text x="'+(m.l-8)+'" y="'+(y+4)+'" font-size="11" fill="#8a93a6" text-anchor="end">'+(v>0?'+':'')+f2(v)+'</text>'; });
+
+  // 零线
+  const zeroLine='<line x1="'+m.l+'" y1="'+y0+'" x2="'+(W-m.r)+'" y2="'+y0+'" stroke="#9aa3b5" stroke-width="1.4"/>';
+  // 平衡点竖线
+  const beX=px(Math.max(minP,Math.min(maxP,be)));
+  const beLine='<line x1="'+beX+'" y1="'+m.t+'" x2="'+beX+'" y2="'+(H-m.b)+'" stroke="#ff8f00" stroke-dasharray="5 4" stroke-width="1.3"/>'+
+    '<text x="'+beX+'" y="'+(m.t-6)+'" font-size="11" fill="#ff8f00" text-anchor="middle">平衡点 '+f2(be)+'</text>';
+  // 当前价竖线
+  const spX=px(Math.max(minP,Math.min(maxP,sp)));
+  const spLine='<line x1="'+spX+'" y1="'+m.t+'" x2="'+spX+'" y2="'+(H-m.b)+'" stroke="#2b6cff" stroke-dasharray="2 3" stroke-width="1.3"/>'+
+    '<text x="'+spX+'" y="'+(H-m.b+16)+'" font-size="11" fill="#2b6cff" text-anchor="middle">当前 '+f2(sp)+'</text>';
+
+  const svg='<svg viewBox="0 0 '+W+' '+H+'" xmlns="http://www.w3.org/2000/svg">'+
+    '<rect x="'+m.l+'" y="'+m.t+'" width="'+(W-m.l-m.r)+'" height="'+(H-m.t-m.b)+'" fill="#fbfcff"/>'+
+    yax+zeroLine+fillUp+fillDown+
+    '<path d="'+d+'" fill="none" stroke="#2b6cff" stroke-width="2.4"/>'+
+    beLine+spLine+xax+
+    '<text x="'+m.l+'" y="14" font-size="12" fill="#5a6473">横轴：标的价格　纵轴：每股价差盈亏（红赚 / 绿亏）</text>'+
+  '</svg>';
+  document.getElementById('chartbox').innerHTML=svg;
+}
+</script>
+</body>
+</html>
